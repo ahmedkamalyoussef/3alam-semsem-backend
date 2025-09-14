@@ -1,17 +1,54 @@
 import { Op } from "sequelize";
 import Repair from "./repair.model.js";
 
-// Create new repair
+const validateRepairData = (data) => {
+  const errors = [];
+  
+  if (!data.customerName || data.customerName.trim().length === 0) {
+    errors.push("Customer name is required");
+  }
+  
+  if (!data.deviceDescription || data.deviceDescription.trim().length === 0) {
+    errors.push("Device description is required");
+  }
+  
+  if (data.cost !== undefined && data.cost < 0) {
+    errors.push("Cost cannot be negative");
+  }
+  
+  return errors;
+};
+
 export const createRepair = async (req, res) => {
   try {
-    const repair = await Repair.create(req.body);
+    const { customerName, deviceDescription, problemDescription, cost } = req.body;
+
+    const validationErrors = validateRepairData({ customerName, deviceDescription, problemDescription, cost });
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ 
+        message: "Validation failed", 
+        errors: validationErrors 
+      });
+    }
+
+    const repair = await Repair.create({ 
+      customerName: customerName.trim(), 
+      deviceDescription: deviceDescription.trim(), 
+      problemDescription: problemDescription?.trim() || null, 
+      cost: cost || 0,
+      status: "pending"
+    });
+    
     res.status(201).json(repair);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Create repair error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };
 
-// Get all repairs (with optional search by customer_name) - latest first
 export const getRepairs = async (req, res) => {
   try {
     const { customer } = req.query;
@@ -28,41 +65,95 @@ export const getRepairs = async (req, res) => {
 
     res.json(repairs);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get repairs error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };
 
-// Get repair by ID
 export const getRepairById = async (req, res) => {
   try {
-    const repair = await Repair.findByPk(req.params.id);
-    if (!repair) return res.status(404).json({ message: "Repair not found" });
+    const { id } = req.params;
+
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: "Valid repair ID is required" });
+    }
+
+    const repair = await Repair.findByPk(id);
+    if (!repair) {
+      return res.status(404).json({ message: "Repair not found" });
+    }
 
     res.json(repair);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get repair by ID error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };
 
-// Update repair info (name, description, cost, etc.)
 export const updateRepair = async (req, res) => {
   try {
-    const repair = await Repair.findByPk(req.params.id);
-    if (!repair) return res.status(404).json({ message: "Repair not found" });
+    const { id } = req.params;
+    const { customerName, deviceDescription, problemDescription, cost } = req.body;
 
-    await repair.update(req.body);
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: "Valid repair ID is required" });
+    }
 
+    const repair = await Repair.findByPk(id);
+    if (!repair) {
+      return res.status(404).json({ message: "Repair not found" });
+    }
+
+    if (customerName !== undefined) {
+      if (!customerName || customerName.trim().length === 0) {
+        return res.status(400).json({ message: "Customer name cannot be empty" });
+      }
+    }
+
+    if (deviceDescription !== undefined) {
+      if (!deviceDescription || deviceDescription.trim().length === 0) {
+        return res.status(400).json({ message: "Device description cannot be empty" });
+      }
+    }
+
+    if (cost !== undefined && cost < 0) {
+      return res.status(400).json({ message: "Cost cannot be negative" });
+    }
+
+    if (customerName !== undefined) repair.customerName = customerName.trim();
+    if (deviceDescription !== undefined) repair.deviceDescription = deviceDescription.trim();
+    if (problemDescription !== undefined) repair.problemDescription = problemDescription?.trim() || null;
+    if (cost !== undefined) repair.cost = cost;
+
+    await repair.save();
     res.json(repair);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Update repair error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };
 
-// Mark repair as fixed
 export const markFixed = async (req, res) => {
   try {
-    const repair = await Repair.findByPk(req.params.id);
-    if (!repair) return res.status(404).json({ message: "Repair not found" });
+    const { id } = req.params;
+
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: "Valid repair ID is required" });
+    }
+
+    const repair = await Repair.findByPk(id);
+    if (!repair) {
+      return res.status(404).json({ message: "Repair not found" });
+    }
 
     repair.status = "fixed";
     repair.fixed_at = new Date();
@@ -70,32 +161,59 @@ export const markFixed = async (req, res) => {
     await repair.save();
     res.json(repair);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Mark fixed error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };
 
-// Mark repair as not fixed
 export const markNotFixed = async (req, res) => {
   try {
-    const repair = await Repair.findByPk(req.params.id);
-    if (!repair) return res.status(404).json({ message: "Repair not found" });
+    const { id } = req.params;
 
-    repair.status = "pending"; // رجعها لحالة انتظار أو غير مثبتة
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: "Valid repair ID is required" });
+    }
+
+    const repair = await Repair.findByPk(id);
+    if (!repair) {
+      return res.status(404).json({ message: "Repair not found" });
+    }
+
+    repair.status = "pending";
     repair.fixed_at = null;
 
     await repair.save();
     res.json(repair);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Mark not fixed error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };
 
-// Mark repair as delivered
 export const markDelivered = async (req, res) => {
   try {
-    const repair = await Repair.findByPk(req.params.id);
-    if (!repair) return res.status(404).json({ message: "Repair not found" });
+    const { id } = req.params;
 
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: "Valid repair ID is required" });
+    }
+
+    const repair = await Repair.findByPk(id);
+    if (!repair) {
+      return res.status(404).json({ message: "Repair not found" });
+    }
+
+    if (repair.status !== "fixed") {
+      return res.status(400).json({ 
+        message: "Repair must be marked as fixed before it can be delivered" 
+      });
+    }
 
     repair.isDelivered = true;
     repair.deliveredAt = new Date();
@@ -103,21 +221,38 @@ export const markDelivered = async (req, res) => {
     await repair.save();
     res.json(repair);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Mark delivered error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };
 
-// Get monthly statistics (count + total cost)
 export const getMonthlyStats = async (req, res) => {
   try {
     const { month, year } = req.query;
 
     if (!month || !year) {
-      return res.status(400).json({ message: "Month and Year are required" });
+      return res.status(400).json({ 
+        message: "Month and Year are required",
+        errors: ["Month parameter is required", "Year parameter is required"]
+      });
     }
 
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
+    const monthNum = parseInt(month);
+    const yearNum = parseInt(year);
+
+    if (monthNum < 1 || monthNum > 12) {
+      return res.status(400).json({ message: "Month must be between 1 and 12" });
+    }
+
+    if (yearNum < 2000 || yearNum > 2100) {
+      return res.status(400).json({ message: "Year must be between 2000 and 2100" });
+    }
+
+    const startDate = new Date(yearNum, monthNum - 1, 1);
+    const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
 
     const repairs = await Repair.findAll({
       where: {
@@ -132,26 +267,41 @@ export const getMonthlyStats = async (req, res) => {
     const totalCost = repairs.reduce((sum, r) => sum + r.cost, 0);
 
     res.json({
-      month,
-      year,
+      month: monthNum,
+      year: yearNum,
       totalCount,
       totalCost,
       repairs,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get monthly stats error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };
 
-// Delete repair
 export const deleteRepair = async (req, res) => {
   try {
-    const repair = await Repair.findByPk(req.params.id);
-    if (!repair) return res.status(404).json({ message: "Repair not found" });
+    const { id } = req.params;
+
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: "Valid repair ID is required" });
+    }
+
+    const repair = await Repair.findByPk(id);
+    if (!repair) {
+      return res.status(404).json({ message: "Repair not found" });
+    }
 
     await repair.destroy();
     res.json({ message: "Repair deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Delete repair error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };

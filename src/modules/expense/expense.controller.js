@@ -1,12 +1,49 @@
 import Expense from "./expense.model.js";
 import { Op } from "sequelize";
 
+const validateExpenseData = (data) => {
+  const errors = [];
+  
+  if (!data.description || data.description.trim().length === 0) {
+    errors.push("Expense description is required");
+  }
+  
+  if (!data.amount || data.amount <= 0) {
+    errors.push("Amount must be greater than 0");
+  }
+  
+  if (data.expenseDate && isNaN(new Date(data.expenseDate).getTime())) {
+    errors.push("Invalid expense date format");
+  }
+  
+  return errors;
+};
+
 export const createExpense = async (req, res) => {
   try {
-    const expense = await Expense.create(req.body);
+    const { description, amount, expenseDate } = req.body;
+
+    const validationErrors = validateExpenseData({ description, amount, expenseDate });
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ 
+        message: "Validation failed", 
+        errors: validationErrors 
+      });
+    }
+
+    const expense = await Expense.create({ 
+      description: description.trim(), 
+      amount, 
+      expenseDate: expenseDate || new Date() 
+    });
+    
     res.status(201).json(expense);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Create expense error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };
 
@@ -17,41 +54,101 @@ export const getExpenses = async (req, res) => {
     });
     res.json(expenses);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get expenses error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };
 
 export const getExpenseById = async (req, res) => {
   try {
-    const expense = await Expense.findByPk(req.params.id);
-    if (!expense) return res.status(404).json({ message: "Expense not found" });
+    const { id } = req.params;
+
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: "Valid expense ID is required" });
+    }
+
+    const expense = await Expense.findByPk(id);
+    if (!expense) {
+      return res.status(404).json({ message: "Expense not found" });
+    }
+    
     res.json(expense);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get expense by ID error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };
 
 export const updateExpense = async (req, res) => {
   try {
-    const expense = await Expense.findByPk(req.params.id);
-    if (!expense) return res.status(404).json({ message: "Expense not found" });
+    const { id } = req.params;
+    const { description, amount, expenseDate } = req.body;
 
-    await expense.update(req.body);
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: "Valid expense ID is required" });
+    }
+
+    const expense = await Expense.findByPk(id);
+    if (!expense) {
+      return res.status(404).json({ message: "Expense not found" });
+    }
+
+    if (description !== undefined) {
+      if (!description || description.trim().length === 0) {
+        return res.status(400).json({ message: "Expense description cannot be empty" });
+      }
+    }
+
+    if (amount !== undefined && amount <= 0) {
+      return res.status(400).json({ message: "Amount must be greater than 0" });
+    }
+
+    if (expenseDate !== undefined && isNaN(new Date(expenseDate).getTime())) {
+      return res.status(400).json({ message: "Invalid expense date format" });
+    }
+
+    if (description !== undefined) expense.description = description.trim();
+    if (amount !== undefined) expense.amount = amount;
+    if (expenseDate !== undefined) expense.expenseDate = expenseDate;
+
+    await expense.save();
     res.json(expense);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Update expense error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };
 
 export const deleteExpense = async (req, res) => {
   try {
-    const expense = await Expense.findByPk(req.params.id);
-    if (!expense) return res.status(404).json({ message: "Expense not found" });
+    const { id } = req.params;
+
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: "Valid expense ID is required" });
+    }
+
+    const expense = await Expense.findByPk(id);
+    if (!expense) {
+      return res.status(404).json({ message: "Expense not found" });
+    }
 
     await expense.destroy();
     res.json({ message: "Expense deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Delete expense error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };
 
@@ -60,11 +157,25 @@ export const getMonthlyStats = async (req, res) => {
     const { month, year } = req.query;
 
     if (!month || !year) {
-      return res.status(400).json({ message: "Month and Year are required" });
+      return res.status(400).json({ 
+        message: "Month and Year are required",
+        errors: ["Month parameter is required", "Year parameter is required"]
+      });
     }
 
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
+    const monthNum = parseInt(month);
+    const yearNum = parseInt(year);
+
+    if (monthNum < 1 || monthNum > 12) {
+      return res.status(400).json({ message: "Month must be between 1 and 12" });
+    }
+
+    if (yearNum < 2000 || yearNum > 2100) {
+      return res.status(400).json({ message: "Year must be between 2000 and 2100" });
+    }
+
+    const startDate = new Date(yearNum, monthNum - 1, 1);
+    const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
 
     const expenses = await Expense.findAll({
       where: {
@@ -76,12 +187,17 @@ export const getMonthlyStats = async (req, res) => {
     const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
 
     res.json({
-      month,
-      year,
+      month: monthNum,
+      year: yearNum,
       totalAmount,
+      expensesCount: expenses.length,
       expenses,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get monthly stats error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
   }
 };

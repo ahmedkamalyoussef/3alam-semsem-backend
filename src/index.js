@@ -2,8 +2,7 @@ import express, { json, urlencoded } from "express";
 import { config } from "dotenv";
 import cors from "cors";
 import sequelize from "./lib/database.js";
-import "./modules/associations.js";
-// import "./context";
+import "./modules/context.js";
 
 config();
 

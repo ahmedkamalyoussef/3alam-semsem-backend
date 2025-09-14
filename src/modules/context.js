@@ -13,7 +13,7 @@ Product.belongsTo(Category, { foreignKey: "categoryId" });
 Sale.hasMany(SaleItem, { foreignKey: "saleId", onDelete: "CASCADE" });
 SaleItem.belongsTo(Sale, { foreignKey: "saleId" });
 
-Product.hasMany(SaleItem, { foreignKey: "productId", onDelete: "CASCADE" });
+Product.hasMany(SaleItem, { foreignKey: "productId" });
 SaleItem.belongsTo(Product, { foreignKey: "productId" });
 
 
