@@ -6,13 +6,14 @@ import {
   getMonthlyStats,
   deleteSale,
 } from "./sale.controller.js";
+import protect from "../../middlewares/auth.middleware.js";
 
 const router = Router();
 
-router.post("/", createSale);
-router.get("/", getSales);
-router.get("/stats/monthly", getMonthlyStats);
-router.get("/:id", getSaleById);
-router.delete("/:id", deleteSale);
+router.post("/", protect(), createSale);
+router.get("/", protect(), getSales);
+router.get("/stats/monthly", protect(), getMonthlyStats);
+router.get("/:id", protect(), getSaleById);
+router.delete("/:id", protect(), deleteSale);
 
 export default router;

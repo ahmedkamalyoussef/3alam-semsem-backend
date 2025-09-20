@@ -3,7 +3,6 @@ import { config } from "dotenv";
 import cors from "cors";
 import sequelize from "./lib/database.js";
 import "./modules/context.js";
-
 config();
 
 const app = express();

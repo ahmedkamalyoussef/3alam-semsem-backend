@@ -7,14 +7,15 @@ import {
   deleteExpense,
   getMonthlyStats,
 } from "./expense.controller.js";
+import protect from "../../middlewares/auth.middleware.js";
 
 const router = Router();
 
-router.post("/", createExpense);
-router.get("/", getExpenses);
-router.get("/stats/monthly", getMonthlyStats);
-router.get("/:id", getExpenseById);
-router.patch("/:id", updateExpense);
-router.delete("/:id", deleteExpense);
+router.post("/", protect(), createExpense);
+router.get("/", protect(), getExpenses);
+router.get("/stats/monthly", protect(), getMonthlyStats);
+router.get("/:id", protect(), getExpenseById);
+router.patch("/:id", protect(), updateExpense);
+router.delete("/:id", protect(), deleteExpense);
 
 export default router;

@@ -8,8 +8,8 @@ const validateRepairData = (data) => {
     errors.push("Customer name is required");
   }
   
-  if (!data.deviceDescription || data.deviceDescription.trim().length === 0) {
-    errors.push("Device description is required");
+  if (!data.deviceName || data.deviceName.trim().length === 0) {
+    errors.push("Device name is required");
   }
   
   if (data.cost !== undefined && data.cost < 0) {
@@ -21,9 +21,9 @@ const validateRepairData = (data) => {
 
 export const createRepair = async (req, res) => {
   try {
-    const { customerName, deviceDescription, problemDescription, cost } = req.body;
+    const { customerName, deviceName, problemDesc, cost } = req.body;
 
-    const validationErrors = validateRepairData({ customerName, deviceDescription, problemDescription, cost });
+    const validationErrors = validateRepairData({ customerName, deviceName, problemDesc, cost });
     if (validationErrors.length > 0) {
       return res.status(400).json({ 
         message: "Validation failed", 
@@ -33,8 +33,8 @@ export const createRepair = async (req, res) => {
 
     const repair = await Repair.create({ 
       customerName: customerName.trim(), 
-      deviceDescription: deviceDescription.trim(), 
-      problemDescription: problemDescription?.trim() || null, 
+      deviceName: deviceName.trim(), 
+      problemDesc: problemDesc?.trim() || null, 
       cost: cost || 0,
       status: "pending"
     });
@@ -99,7 +99,7 @@ export const getRepairById = async (req, res) => {
 export const updateRepair = async (req, res) => {
   try {
     const { id } = req.params;
-    const { customerName, deviceDescription, problemDescription, cost } = req.body;
+  const { customerName, deviceName, problemDesc, cost } = req.body;
 
     if (!id || isNaN(id)) {
       return res.status(400).json({ message: "Valid repair ID is required" });
@@ -116,9 +116,9 @@ export const updateRepair = async (req, res) => {
       }
     }
 
-    if (deviceDescription !== undefined) {
-      if (!deviceDescription || deviceDescription.trim().length === 0) {
-        return res.status(400).json({ message: "Device description cannot be empty" });
+    if (deviceName !== undefined) {
+      if (!deviceName || deviceName.trim().length === 0) {
+        return res.status(400).json({ message: "Device name cannot be empty" });
       }
     }
 
@@ -126,10 +126,10 @@ export const updateRepair = async (req, res) => {
       return res.status(400).json({ message: "Cost cannot be negative" });
     }
 
-    if (customerName !== undefined) repair.customerName = customerName.trim();
-    if (deviceDescription !== undefined) repair.deviceDescription = deviceDescription.trim();
-    if (problemDescription !== undefined) repair.problemDescription = problemDescription?.trim() || null;
-    if (cost !== undefined) repair.cost = cost;
+  if (customerName !== undefined) repair.customerName = customerName.trim();
+  if (deviceName !== undefined) repair.deviceName = deviceName.trim();
+  if (problemDesc !== undefined) repair.problemDesc = problemDesc?.trim() || null;
+  if (cost !== undefined) repair.cost = cost;
 
     await repair.save();
     res.json(repair);

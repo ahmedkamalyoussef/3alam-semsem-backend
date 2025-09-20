@@ -6,13 +6,14 @@ import {
   updateProduct,
   deleteProduct,
 } from "./product.controller.js";
+import protect from "../../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-router.post("/", createProduct);
-router.get("/", getProducts);
-router.get("/category/:categoryId", getProductsByCategory);
-router.patch("/:id", updateProduct);
-router.delete("/:id", deleteProduct);
+router.post("/", protect(), createProduct);
+router.get("/", protect(), getProducts);
+router.get("/category/:categoryId", protect(), getProductsByCategory);
+router.patch("/:id", protect(), updateProduct);
+router.delete("/:id", protect(), deleteProduct);
 
 export default router;
