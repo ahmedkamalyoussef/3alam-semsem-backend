@@ -157,7 +157,7 @@ export const markFixed = async (req, res) => {
 
     repair.status = "fixed";
     repair.fixed_at = new Date();
-
+    repair.isDelivered = false;
     await repair.save();
     res.json(repair);
   } catch (error) {
@@ -182,9 +182,9 @@ export const markNotFixed = async (req, res) => {
       return res.status(404).json({ message: "Repair not found" });
     }
 
-    repair.status = "pending";
+    repair.status = "notFixed";
     repair.fixed_at = null;
-
+    repair.isDelivered = false;
     await repair.save();
     res.json(repair);
   } catch (error) {
@@ -209,9 +209,9 @@ export const markDelivered = async (req, res) => {
       return res.status(404).json({ message: "Repair not found" });
     }
 
-    if (repair.status !== "fixed") {
+    if (repair.status !== "fixed" && repair.status !== "notFixed") {
       return res.status(400).json({ 
-        message: "Repair must be marked as fixed before it can be delivered" 
+        message: "Repair must be marked as fixed or not before it can be delivered" 
       });
     }
 
@@ -254,17 +254,20 @@ export const getMonthlyStats = async (req, res) => {
     const startDate = new Date(yearNum, monthNum - 1, 1);
     const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
 
+    // هات كل الريبييرز في الشهر
     const repairs = await Repair.findAll({
       where: {
-        status: "fixed",
-        isDelivered: true,
-        deliveredAt: { [Op.between]: [startDate, endDate] },
+        createdAt: { [Op.between]: [startDate, endDate] },
       },
       order: [["createdAt", "DESC"]],
     });
 
     const totalCount = repairs.length;
-    const totalCost = repairs.reduce((sum, r) => sum + r.cost, 0);
+
+    // احسب التوتال بس من اللي اتصلحت واتسلمت
+    const totalCost = repairs
+      .filter(r => r.status === "fixed" && r.isDelivered === true)
+      .reduce((sum, r) => sum + r.cost, 0);
 
     res.json({
       month: monthNum,
@@ -281,6 +284,7 @@ export const getMonthlyStats = async (req, res) => {
     });
   }
 };
+
 
 export const deleteRepair = async (req, res) => {
   try {

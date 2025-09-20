@@ -6,7 +6,7 @@ const Repair = sequelize.define("Repair", {
   deviceName: { type: DataTypes.STRING, allowNull: false },
   problemDesc: { type: DataTypes.TEXT },
   cost: { type: DataTypes.FLOAT, allowNull: false },
-  status: { type: DataTypes.ENUM("pending", "fixed"), defaultValue: "pending" },
+  status: { type: DataTypes.ENUM("pending", "fixed" ,"notFixed"), defaultValue: "pending" },
   isDelivered: { type: DataTypes.BOOLEAN, defaultValue: false },
   receivedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   deliveredAt: { type: DataTypes.DATE },
