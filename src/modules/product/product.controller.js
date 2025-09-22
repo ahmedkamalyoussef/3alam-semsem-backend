@@ -1,7 +1,7 @@
 import Product from "./product.model.js";
 import Category from "../category/category.model.js";
 import SaleItem from "../saleItem/saleItem.model.js";
-
+import { Op } from "sequelize";
 const validateProductData = (data) => {
   const errors = [];
   
@@ -139,7 +139,7 @@ export const updateProduct = async (req, res) => {
         where: { 
           name: name.trim(), 
           categoryId: categoryId || product.categoryId,
-          id: { [require('sequelize').Op.ne]: id }
+          id: { [Op.ne]: id }
         } 
       });
       if (existingProduct) {

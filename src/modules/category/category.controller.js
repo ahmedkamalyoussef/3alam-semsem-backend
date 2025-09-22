@@ -1,5 +1,25 @@
+
 import Category from "./category.model.js";
 import Product from "../product/product.model.js";
+
+// Helper to format date as { day, month, year }
+function formatDateOnly(date) {
+  if (!date) return null;
+  const d = new Date(date);
+  return {
+    day: d.getDate(),
+    month: d.getMonth() + 1,
+    year: d.getFullYear(),
+  };
+}
+
+function formatCategory(category) {
+  if (!category) return category;
+  const obj = category.toJSON ? category.toJSON() : { ...category };
+  if (obj.createdAt) obj.createdAt = formatDateOnly(obj.createdAt);
+  if (obj.updatedAt) obj.updatedAt = formatDateOnly(obj.updatedAt);
+  return obj;
+}
 
 const validateCategoryData = (data) => {
   const errors = [];
@@ -41,7 +61,7 @@ export const createCategory = async (req, res) => {
       description: description?.trim() || null 
     });
     
-    res.status(201).json(category);
+  res.status(201).json(formatCategory(category));
   } catch (error) {
     console.error("Create category error:", error);
     res.status(500).json({ 
@@ -56,7 +76,7 @@ export const getCategories = async (req, res) => {
     const categories = await Category.findAll({
       order: [["createdAt", "DESC"]]
     });
-    res.json(categories);
+  res.json(categories.map(formatCategory));
   } catch (error) {
     console.error("Get categories error:", error);
     res.status(500).json({ 
@@ -106,7 +126,7 @@ export const updateCategory = async (req, res) => {
     if (description !== undefined) category.description = description?.trim() || null;
 
     await category.save();
-    res.json(category);
+  res.json(formatCategory(category));
   } catch (error) {
     console.error("Update category error:", error);
     res.status(500).json({ 
