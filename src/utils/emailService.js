@@ -57,6 +57,4 @@ const sendOTPEmail = async (email, otp, type, isExpired = false) => {
   }
 };
 
-export default {
-  sendOTPEmail,
-};
+export default sendOTPEmail;
