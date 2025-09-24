@@ -4,6 +4,7 @@ import Category from "../category/category.model.js";
 
 const Product = sequelize.define("Product", {
   name: { type: DataTypes.STRING, allowNull: false },
+  wholesale_price: { type: DataTypes.FLOAT, allowNull: false },
   price: { type: DataTypes.FLOAT, allowNull: false },
   stock: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { timestamps: true });

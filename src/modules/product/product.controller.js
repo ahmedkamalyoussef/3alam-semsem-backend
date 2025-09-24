@@ -26,7 +26,7 @@ const validateProductData = (data) => {
 
 export const createProduct = async (req, res) => {
   try {
-    const { name, price, stock, categoryId } = req.body;
+    const { name, price,wholesale_price, stock, categoryId } = req.body;
 
     const validationErrors = validateProductData({ name, price, stock, categoryId });
     if (validationErrors.length > 0) {
@@ -54,6 +54,7 @@ export const createProduct = async (req, res) => {
       name: name.trim(), 
       price, 
       stock, 
+      wholesale_price: wholesale_price,
       categoryId 
     });
     
@@ -70,7 +71,31 @@ export const createProduct = async (req, res) => {
 export const getProducts = async (req, res) => {
   try {
     const products = await Product.findAll({
-      include: [{ model: Category, attributes: ["id", "name"] }],
+      attributes: { 
+        exclude: ['wholesale_price'] 
+      },
+      include: [{ 
+        model: Category, 
+        attributes: ["id", "name"] 
+      }],
+      order: [["createdAt", "DESC"]]
+    });
+    res.json(products);
+  } catch (error) {
+    console.error("Get products error:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: process.env.NODE_ENV === "development" ? error.message : undefined 
+    });
+  }
+};
+export const getWholesaleProducts = async (req, res) => {
+  try {
+    const products = await Product.findAll({
+      include: [{ 
+        model: Category, 
+        attributes: ["id", "name"] 
+      }],
       order: [["createdAt", "DESC"]]
     });
     res.json(products);
@@ -92,7 +117,12 @@ export const getProductsByCategory = async (req, res) => {
     }
 
     const category = await Category.findByPk(categoryId, {
-      include: [{ model: Product }],
+      include: [{ 
+        model: Product,
+        attributes: { 
+          exclude: ['wholesale_price'] 
+        }
+      }],
     });
 
     if (!category) {
@@ -112,7 +142,7 @@ export const getProductsByCategory = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, price, stock, categoryId } = req.body;
+    const { name, price, stock,wholesale_price, categoryId } = req.body;
 
     if (!id || isNaN(id)) {
       return res.status(400).json({ message: "Valid product ID is required" });
@@ -161,6 +191,7 @@ export const updateProduct = async (req, res) => {
     if (price !== undefined) product.price = price;
     if (stock !== undefined) product.stock = stock;
     if (categoryId !== undefined) product.categoryId = categoryId;
+    if (wholesale_price !== undefined) product.wholesale_price = wholesale_price;
 
     await product.save();
     res.json(product);
