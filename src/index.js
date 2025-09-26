@@ -58,13 +58,7 @@ const PORT = process.env.PORT || 5001;
 
 sequelize
   .sync({})
-   .then(() => {
-     console.log("Sequelize sync completed");
-     app.listen(PORT, () => {
-       console.log(`Server is running on http://localhost:${PORT}`);
-     });
-   })
-   .catch((err) => {
-     console.error("Sequelize sync failed:", err);
-   });
+  .then(() => console.log("✅ DB connected"))
+  .catch((err) => console.error("❌ DB connection failed:", err));
+
 export default app;
