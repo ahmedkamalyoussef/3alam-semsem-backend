@@ -44,8 +44,8 @@ app.use((err, req, res, next) => {
 // Database sync
 const PORT = process.env.PORT || 5001;
 
-sequelize.sync({ alter: true })
-  //.sync({})
+sequelize//.sync({ alter: true })
+  .sync({})
   .then(() => {
     console.log("Sequelize sync completed");
     app.listen(PORT, () => {
