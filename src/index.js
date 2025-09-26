@@ -44,14 +44,27 @@ app.use((err, req, res, next) => {
 // Database sync
 const PORT = process.env.PORT || 5001;
 
+// sequelize.sync({ alter: true })
+//   //.sync({})
+//   .then(() => {
+//     console.log("Sequelize sync completed");
+//     app.listen(PORT, () => {
+//       console.log(`Server is running on http://localhost:${PORT}`);
+//     });
+//   })
+//   .catch((err) => {
+//     console.error("Sequelize sync failed:", err);
+//   });
+
 sequelize.sync({ alter: true })
-  //.sync({})
-  .then(() => {
-    console.log("Sequelize sync completed");
-    app.listen(PORT, () => {
-      console.log(`Server is running on http://localhost:${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error("Sequelize sync failed:", err);
+  .then(() => console.log("Sequelize sync completed"))
+  .catch((err) => console.error("Sequelize sync failed:", err));
+
+if (process.env.NODE_ENV === "production") {
+  const PORT = process.env.PORT || 5001;
+  app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
   });
+}
+
+export default app;
