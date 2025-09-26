@@ -56,9 +56,9 @@ app.use((err, req, res, next) => {
 //     console.error("Sequelize sync failed:", err);
 //   });
 
-sequelize
-  .sync({})
-  .then(() => console.log("✅ DB connected"))
-  .catch((err) => console.error("❌ DB connection failed:", err));
+// sequelize
+//   .sync({})
+//   .then(() => console.log("✅ DB connected"))
+//   .catch((err) => console.error("❌ DB connection failed:", err));
 
 export default app;
