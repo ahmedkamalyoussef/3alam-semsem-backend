@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import Otp from "../modules/OtpModel.js";
-import { Op } from "sequelize";
+
 // OTP generation
 export function generateOTP() {
   return crypto.randomInt(100000, 999999).toString();
@@ -9,7 +9,7 @@ export function generateOTP() {
 // Store OTP
 export async function storeOTP(email, otp, type) {
   try {
-    await Otp.destroy({ where: { email, type } });
+    await Otp.deleteMany({ email, type });
     await Otp.create({
       email,
       otp,
@@ -27,16 +27,14 @@ export async function storeOTP(email, otp, type) {
 export async function verifyOTP(email, otp, type) {
   try {
     const otpRecord = await Otp.findOne({
-      where: {
-        email,
-        type,
-        isUsed: false,
-        expiresAt: { [Op.gt]: new Date() },
-      },
+      email,
+      type,
+      isUsed: false,
+      expiresAt: { $gt: new Date() },
     });
     if (!otpRecord) return false;
     if (otpRecord.otp === otp) {
-      await otpRecord.update({ isUsed: true });
+      await Otp.findByIdAndUpdate(otpRecord._id, { isUsed: true });
       return true;
     }
     return false;

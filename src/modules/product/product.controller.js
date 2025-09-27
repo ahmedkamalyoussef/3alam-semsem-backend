@@ -1,7 +1,8 @@
 import Product from "./product.model.js";
 import Category from "../category/category.model.js";
 import SaleItem from "../saleItem/saleItem.model.js";
-import { Op } from "sequelize";
+import mongoose from "mongoose";
+
 const validateProductData = (data) => {
   const errors = [];
   
@@ -26,7 +27,7 @@ const validateProductData = (data) => {
 
 export const createProduct = async (req, res) => {
   try {
-    const { name, price,wholesale_price, stock, categoryId } = req.body;
+    const { name, price, wholesale_price, stock, categoryId } = req.body;
 
     const validationErrors = validateProductData({ name, price, stock, categoryId });
     if (validationErrors.length > 0) {
@@ -36,13 +37,14 @@ export const createProduct = async (req, res) => {
       });
     }
 
-    const category = await Category.findByPk(categoryId);
+    const category = await Category.findById(categoryId);
     if (!category) {
       return res.status(404).json({ message: "Category not found" });
     }
 
     const existingProduct = await Product.findOne({ 
-      where: { name: name.trim(), categoryId } 
+      name: name.trim(), 
+      categoryId 
     });
     if (existingProduct) {
       return res.status(409).json({ 
@@ -70,16 +72,13 @@ export const createProduct = async (req, res) => {
 
 export const getProducts = async (req, res) => {
   try {
-    const products = await Product.findAll({
-      attributes: { 
-        exclude: ['wholesale_price'] 
-      },
-      include: [{ 
-        model: Category, 
-        attributes: ["id", "name"] 
-      }],
-      order: [["createdAt", "DESC"]]
-    });
+    const products = await Product.find()
+      .select('-wholesale_price')
+      .populate({
+        path: 'categoryId',
+        select: 'name'
+      })
+      .sort({ createdAt: -1 });
     res.json(products);
   } catch (error) {
     console.error("Get products error:", error);
@@ -89,15 +88,15 @@ export const getProducts = async (req, res) => {
     });
   }
 };
+
 export const getWholesaleProducts = async (req, res) => {
   try {
-    const products = await Product.findAll({
-      include: [{ 
-        model: Category, 
-        attributes: ["id", "name"] 
-      }],
-      order: [["createdAt", "DESC"]]
-    });
+    const products = await Product.find()
+      .populate({
+        path: 'categoryId',
+        select: 'name'
+      })
+      .sort({ createdAt: -1 });
     res.json(products);
   } catch (error) {
     console.error("Get products error:", error);
@@ -112,24 +111,19 @@ export const getProductsByCategory = async (req, res) => {
   try {
     const { categoryId } = req.params;
 
-    if (!categoryId || isNaN(categoryId)) {
+    if (!categoryId || !mongoose.Types.ObjectId.isValid(categoryId)) {
       return res.status(400).json({ message: "Valid category ID is required" });
     }
 
-    const category = await Category.findByPk(categoryId, {
-      include: [{ 
-        model: Product,
-        attributes: { 
-          exclude: ['wholesale_price'] 
-        }
-      }],
-    });
-
+    const category = await Category.findById(categoryId);
     if (!category) {
       return res.status(404).json({ message: "Category not found" });
     }
 
-    res.json(category.Products);
+    const products = await Product.find({ categoryId })
+      .select('-wholesale_price');
+
+    res.json(products);
   } catch (error) {
     console.error("Get products by category error:", error);
     res.status(500).json({ 
@@ -142,19 +136,19 @@ export const getProductsByCategory = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, price, stock,wholesale_price, categoryId } = req.body;
+    const { name, price, stock, wholesale_price, categoryId } = req.body;
 
-    if (!id || isNaN(id)) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid product ID is required" });
     }
 
-    const product = await Product.findByPk(id);
+    const product = await Product.findById(id);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
 
     if (categoryId) {
-      const category = await Category.findByPk(categoryId);
+      const category = await Category.findById(categoryId);
       if (!category) {
         return res.status(404).json({ message: "Category not found" });
       }
@@ -166,11 +160,9 @@ export const updateProduct = async (req, res) => {
       }
       
       const existingProduct = await Product.findOne({ 
-        where: { 
-          name: name.trim(), 
-          categoryId: categoryId || product.categoryId,
-          id: { [Op.ne]: id }
-        } 
+        name: name.trim(), 
+        categoryId: categoryId || product.categoryId,
+        _id: { $ne: id }
       });
       if (existingProduct) {
         return res.status(409).json({ 
@@ -187,14 +179,15 @@ export const updateProduct = async (req, res) => {
       return res.status(400).json({ message: "Stock must be 0 or greater" });
     }
 
-    if (name !== undefined) product.name = name.trim();
-    if (price !== undefined) product.price = price;
-    if (stock !== undefined) product.stock = stock;
-    if (categoryId !== undefined) product.categoryId = categoryId;
-    if (wholesale_price !== undefined) product.wholesale_price = wholesale_price;
+    const updateData = {};
+    if (name !== undefined) updateData.name = name.trim();
+    if (price !== undefined) updateData.price = price;
+    if (stock !== undefined) updateData.stock = stock;
+    if (categoryId !== undefined) updateData.categoryId = categoryId;
+    if (wholesale_price !== undefined) updateData.wholesale_price = wholesale_price;
 
-    await product.save();
-    res.json(product);
+    const updatedProduct = await Product.findByIdAndUpdate(id, updateData, { new: true });
+    res.json(updatedProduct);
   } catch (error) {
     console.error("Update product error:", error);
     res.status(500).json({ 
@@ -208,23 +201,23 @@ export const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || isNaN(id)) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid product ID is required" });
     }
 
-    const product = await Product.findByPk(id);
+    const product = await Product.findById(id);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    const saleItems = await SaleItem.findAll({ where: { productId: id } });
+    const saleItems = await SaleItem.find({ productId: id });
     if (saleItems.length > 0) {
       return res.status(409).json({ 
         message: "Cannot delete product that has been sold. Please delete related sales first." 
       });
     }
 
-    await product.destroy();
+    await Product.findByIdAndDelete(id);
     res.json({ message: "Product deleted successfully" });
   } catch (error) {
     console.error("Delete product error:", error);

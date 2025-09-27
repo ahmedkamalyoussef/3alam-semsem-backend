@@ -1,9 +1,7 @@
 import jwt from "jsonwebtoken";
 import Admin from "../modules/admin/admin.model.js";
 
-const protect =
-  () =>
-  async (req, res, next) => {
+const protect = async (req, res, next) => {
     try {
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -21,7 +19,7 @@ const protect =
       }
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       // Find user
-      const user = await Admin.findByPk(decoded.id);
+      const user = await Admin.findById(decoded.id);
       if (!user) {
         return res.status(401).json({
           status: false,
@@ -29,11 +27,7 @@ const protect =
         });
       }
       req.user = user;
-
-      const admin = await Admin.findOne({ where: { id: user.id } });
-      if (admin) {
-        req.admin = admin;
-      }
+      req.admin = user;
       next();
     } catch (error) {
       if (error.name === "JsonWebTokenError") {
@@ -56,6 +50,6 @@ const protect =
         error: error.message,
       });
     }
-  };
+};
 
 export default protect;

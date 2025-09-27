@@ -1,6 +1,6 @@
-
 import Category from "./category.model.js";
 import Product from "../product/product.model.js";
+import mongoose from "mongoose";
 
 // Helper to format date as { day, month, year }
 function formatDateOnly(date) {
@@ -48,7 +48,7 @@ export const createCategory = async (req, res) => {
     }
 
     const existingCategory = await Category.findOne({ 
-      where: { name: name.trim() } 
+      name: name.trim() 
     });
     if (existingCategory) {
       return res.status(409).json({ 
@@ -61,7 +61,7 @@ export const createCategory = async (req, res) => {
       description: description?.trim() || null 
     });
     
-  res.status(201).json(formatCategory(category));
+    res.status(201).json(formatCategory(category));
   } catch (error) {
     console.error("Create category error:", error);
     res.status(500).json({ 
@@ -73,10 +73,8 @@ export const createCategory = async (req, res) => {
 
 export const getCategories = async (req, res) => {
   try {
-    const categories = await Category.findAll({
-      order: [["createdAt", "DESC"]]
-    });
-  res.json(categories.map(formatCategory));
+    const categories = await Category.find().sort({ createdAt: -1 });
+    res.json(categories.map(formatCategory));
   } catch (error) {
     console.error("Get categories error:", error);
     res.status(500).json({ 
@@ -91,11 +89,11 @@ export const updateCategory = async (req, res) => {
     const { id } = req.params;
     const { name, description } = req.body;
 
-    if (!id || isNaN(id)) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid category ID is required" });
     }
 
-    const category = await Category.findByPk(id);
+    const category = await Category.findById(id);
     if (!category) {
       return res.status(404).json({ message: "Category not found" });
     }
@@ -110,10 +108,8 @@ export const updateCategory = async (req, res) => {
       }
 
       const existingCategory = await Category.findOne({ 
-        where: { 
-          name: name.trim(),
-          id: { [require('sequelize').Op.ne]: id }
-        } 
+        name: name.trim(),
+        _id: { $ne: id }
       });
       if (existingCategory) {
         return res.status(409).json({ 
@@ -122,11 +118,12 @@ export const updateCategory = async (req, res) => {
       }
     }
 
-    if (name !== undefined) category.name = name.trim();
-    if (description !== undefined) category.description = description?.trim() || null;
+    const updateData = {};
+    if (name !== undefined) updateData.name = name.trim();
+    if (description !== undefined) updateData.description = description?.trim() || null;
 
-    await category.save();
-  res.json(formatCategory(category));
+    const updatedCategory = await Category.findByIdAndUpdate(id, updateData, { new: true });
+    res.json(formatCategory(updatedCategory));
   } catch (error) {
     console.error("Update category error:", error);
     res.status(500).json({ 
@@ -140,23 +137,23 @@ export const deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || isNaN(id)) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid category ID is required" });
     }
 
-    const category = await Category.findByPk(id);
+    const category = await Category.findById(id);
     if (!category) {
       return res.status(404).json({ message: "Category not found" });
     }
 
-    const products = await Product.findAll({ where: { categoryId: id } });
+    const products = await Product.find({ categoryId: id });
     if (products.length > 0) {
       return res.status(409).json({ 
         message: `Cannot delete category that has ${products.length} product(s). Please delete or move the products first.` 
       });
     }
 
-    await category.destroy();
+    await Category.findByIdAndDelete(id);
     res.json({ message: "Category deleted successfully" });
   } catch (error) {
     console.error("Delete category error:", error);

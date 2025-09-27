@@ -1,7 +1,7 @@
 import express, { json, urlencoded } from "express";
 import { config } from "dotenv";
 import cors from "cors";
-import sequelize from "./lib/database.js";
+import connectDB from "./lib/database.js";
 import "./modules/context.js";
 config();
 
@@ -41,24 +41,14 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Database sync
+// Database connection and server start
 const PORT = process.env.PORT || 5001;
 
-// sequelize//.sync({ alter: true })
-//   .sync({})
-//   .then(() => {
-//     console.log("Sequelize sync completed");
-//     app.listen(PORT, () => {
-//       console.log(`Server is running on http://localhost:${PORT}`);
-//     });
-//   })
-//   .catch((err) => {
-//     console.error("Sequelize sync failed:", err);
-//   });
-
-sequelize
-  .sync()
-  .then(() => console.log("✅ DB connected"))
-  .catch((err) => console.error("❌ DB connection failed:", err));
+// Connect to MongoDB and start server
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+  });
+});
 
 export default app;

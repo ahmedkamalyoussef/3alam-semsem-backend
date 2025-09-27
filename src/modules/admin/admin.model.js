@@ -1,17 +1,28 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../../lib/database.js";
+import mongoose from "mongoose";
 
-const Admin = sequelize.define("Admin", {
-  email: { type: DataTypes.STRING, allowNull: false, unique: true },
-  password_hash: { type: DataTypes.STRING, allowNull: false },
+const adminSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true
+  },
+  password_hash: {
+    type: String,
+    required: true
+  },
   isVerified: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false,
+    type: Boolean,
+    default: false
   },
   lastLoginAttempt: {
-    type: DataTypes.DATE,
-    allowNull: true,
-  },
-}, { timestamps: true });
+    type: Date
+  }
+}, {
+  timestamps: true
+});
+
+const Admin = mongoose.model("Admin", adminSchema);
 
 export default Admin;

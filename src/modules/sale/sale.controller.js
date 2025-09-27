@@ -1,7 +1,7 @@
 import Sale from "./sale.model.js";
 import SaleItem from "../saleItem/saleItem.model.js";
 import Product from "../product/product.model.js";
-import { Op } from "sequelize";
+import mongoose from "mongoose";
 
 const validateSaleData = (items) => {
   const errors = [];
@@ -12,7 +12,7 @@ const validateSaleData = (items) => {
   }
 
   items.forEach((item, index) => {
-    if (!item.productId || isNaN(item.productId)) {
+    if (!item.productId || !mongoose.Types.ObjectId.isValid(item.productId)) {
       errors.push(`Item ${index + 1}: Valid product ID is required`);
     }
     
@@ -25,14 +25,11 @@ const validateSaleData = (items) => {
 };
 
 export const createSale = async (req, res) => {
-  const t = await Sale.sequelize.transaction();
-
   try {
     const { items } = req.body;
 
     const validationErrors = validateSaleData(items);
     if (validationErrors.length > 0) {
-      await t.rollback();
       return res.status(400).json({ 
         message: "Validation failed", 
         errors: validationErrors 
@@ -42,17 +39,16 @@ export const createSale = async (req, res) => {
     let totalPrice = 0;
     const productsToUpdate = [];
 
+    // Validate all products and check stock
     for (const item of items) {
-      const product = await Product.findByPk(item.productId, { transaction: t });
+      const product = await Product.findById(item.productId);
       if (!product) {
-        await t.rollback();
         return res.status(404).json({ 
           message: `Product with ID ${item.productId} not found` 
         });
       }
 
       if (product.stock < item.quantity) {
-        await t.rollback();
         return res.status(400).json({ 
           message: `Insufficient stock for product "${product.name}". Available: ${product.stock}, Requested: ${item.quantity}` 
         });
@@ -61,42 +57,43 @@ export const createSale = async (req, res) => {
       productsToUpdate.push({ product, quantity: item.quantity });
     }
 
-    const sale = await Sale.create({ totalPrice: 0 }, { transaction: t });
+    // Create the sale
+    const sale = await Sale.create({ totalPrice: 0 });
 
+    // Create sale items and update stock
     const saleItems = await Promise.all(
       items.map(async (item) => {
-        const product = productsToUpdate.find(p => p.product.id === item.productId).product;
+        const product = productsToUpdate.find(p => p.product._id.toString() === item.productId).product;
         
         const subTotal = item.quantity * product.price;
         totalPrice += subTotal;
 
-        product.stock -= item.quantity;
-        await product.save({ transaction: t });
-
-        return SaleItem.create(
-          {
-            saleId: sale.id,
-            productId: item.productId,
-            quantity: item.quantity,
-            unitPrice: product.price,
-            subTotal,
-          },
-          { transaction: t }
+        // Update product stock
+        await Product.findByIdAndUpdate(
+          item.productId,
+          { $inc: { stock: -item.quantity } }
         );
+
+        // Create sale item
+        return SaleItem.create({
+          saleId: sale._id,
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: product.price,
+          subTotal,
+        });
       })
     );
 
-    sale.totalPrice = totalPrice;
-    await sale.save({ transaction: t });
+    // Update sale with total price
+    await Sale.findByIdAndUpdate(sale._id, { totalPrice });
 
-    await t.commit();
     res.status(201).json({ 
       message: "Sale created successfully",
       sale, 
       items: saleItems 
     });
   } catch (error) {
-    await t.rollback();
     console.error("Create sale error:", error);
     res.status(500).json({ 
       message: "Internal server error", 
@@ -105,14 +102,26 @@ export const createSale = async (req, res) => {
   }
 };
 
-
 export const getSales = async (req, res) => {
   try {
-    const sales = await Sale.findAll({
-      include: [{ model: SaleItem, include: [Product] }],
-      order: [["createdAt", "DESC"]],
-    });
-    res.json(sales);
+    const sales = await Sale.find().sort({ createdAt: -1 });
+    
+    // Get sale items for each sale
+    const salesWithItems = await Promise.all(
+      sales.map(async (sale) => {
+        const saleItems = await SaleItem.find({ saleId: sale._id })
+          .populate({
+            path: 'productId',
+            select: 'name price'
+          });
+        return {
+          ...sale.toObject(),
+          saleItems
+        };
+      })
+    );
+    
+    res.json(salesWithItems);
   } catch (error) {
     console.error("Get sales error:", error);
     res.status(500).json({ 
@@ -126,19 +135,24 @@ export const getSaleById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || isNaN(id)) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid sale ID is required" });
     }
 
-    const sale = await Sale.findByPk(id, {
-      include: [{ model: SaleItem, include: [Product] }],
-    });
-
+    const sale = await Sale.findById(id);
     if (!sale) {
       return res.status(404).json({ message: "Sale not found" });
     }
 
-    res.json(sale);
+    const saleItems = await SaleItem.find({ saleId: sale._id })
+      .populate('productId', 'name price');
+
+    const saleWithItems = {
+      ...sale.toObject(),
+      saleItems
+    };
+
+    res.json(saleWithItems);
   } catch (error) {
     console.error("Get sale by ID error:", error);
     res.status(500).json({ 
@@ -173,22 +187,33 @@ export const getMonthlyStats = async (req, res) => {
     const startDate = new Date(yearNum, monthNum - 1, 1);
     const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
 
-    const sales = await Sale.findAll({
-      where: {
-        saleDate: { [Op.between]: [startDate, endDate] },
-      },
-      include: [{ model: SaleItem, include: [Product] }],
-      order: [["createdAt", "DESC"]],
-    });
+    const sales = await Sale.find({
+      saleDate: { $gte: startDate, $lte: endDate }
+    }).sort({ createdAt: -1 });
 
-    const totalRevenue = sales.reduce((sum, s) => sum + s.totalPrice, 0);
+    // Get sale items for each sale
+    const salesWithItems = await Promise.all(
+      sales.map(async (sale) => {
+        const saleItems = await SaleItem.find({ saleId: sale._id })
+          .populate({
+            path: 'productId',
+            select: 'name price'
+          });
+        return {
+          ...sale.toObject(),
+          saleItems
+        };
+      })
+    );
+
+    const totalRevenue = salesWithItems.reduce((sum, s) => sum + s.totalPrice, 0);
 
     res.json({
       month: monthNum,
       year: yearNum,
       totalRevenue,
-      salesCount: sales.length,
-      sales,
+      salesCount: salesWithItems.length,
+      sales: salesWithItems,
     });
   } catch (error) {
     console.error("Get monthly stats error:", error);
@@ -200,45 +225,34 @@ export const getMonthlyStats = async (req, res) => {
 };
 
 export const deleteSale = async (req, res) => {
-  const t = await Sale.sequelize.transaction();
-
   try {
     const { id } = req.params;
 
-    if (!id || isNaN(id)) {
-      await t.rollback();
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid sale ID is required" });
     }
 
-    const sale = await Sale.findByPk(id, {
-      include: [{ model: SaleItem, include: [Product] }],
-      transaction: t
-    });
-    
+    const sale = await Sale.findById(id);
     if (!sale) {
-      await t.rollback();
       return res.status(404).json({ message: "Sale not found" });
     }
 
-    for (const saleItem of sale.SaleItems) {
-      const product = await Product.findByPk(saleItem.productId, { transaction: t });
-      if (product) {
-        product.stock += saleItem.quantity;
-        await product.save({ transaction: t });
-      }
+    const saleItems = await SaleItem.find({ saleId: id });
+    
+    // Restore stock for each product
+    for (const saleItem of saleItems) {
+      await Product.findByIdAndUpdate(
+        saleItem.productId,
+        { $inc: { stock: saleItem.quantity } }
+      );
     }
 
-    await SaleItem.destroy({
-      where: { saleId: sale.id },
-      transaction: t
-    });
+    // Delete sale items and sale
+    await SaleItem.deleteMany({ saleId: id });
+    await Sale.findByIdAndDelete(id);
 
-    await sale.destroy({ transaction: t });
-
-    await t.commit();
     res.json({ message: "Sale deleted successfully" });
   } catch (error) {
-    await t.rollback();
     console.error("Delete sale error:", error);
     res.status(500).json({ 
       message: "Internal server error", 

@@ -1,5 +1,5 @@
-import { Op } from "sequelize";
 import Repair from "./repair.model.js";
+import mongoose from "mongoose";
 
 const validateRepairData = (data) => {
   const errors = [];
@@ -53,15 +53,12 @@ export const getRepairs = async (req, res) => {
   try {
     const { customer } = req.query;
 
-    const where = {};
+    const filter = {};
     if (customer) {
-      where.customerName = { [Op.like]: `%${customer}%` };
+      filter.customerName = { $regex: customer, $options: 'i' };
     }
 
-    const repairs = await Repair.findAll({
-      where,
-      order: [["createdAt", "DESC"]],
-    });
+    const repairs = await Repair.find(filter).sort({ createdAt: -1 });
 
     res.json(repairs);
   } catch (error) {
@@ -77,11 +74,11 @@ export const getRepairById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || isNaN(id)) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid repair ID is required" });
     }
 
-    const repair = await Repair.findByPk(id);
+    const repair = await Repair.findById(id);
     if (!repair) {
       return res.status(404).json({ message: "Repair not found" });
     }
@@ -99,13 +96,13 @@ export const getRepairById = async (req, res) => {
 export const updateRepair = async (req, res) => {
   try {
     const { id } = req.params;
-  const { customerName, deviceName, problemDesc, cost } = req.body;
+    const { customerName, deviceName, problemDesc, cost } = req.body;
 
-    if (!id || isNaN(id)) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid repair ID is required" });
     }
 
-    const repair = await Repair.findByPk(id);
+    const repair = await Repair.findById(id);
     if (!repair) {
       return res.status(404).json({ message: "Repair not found" });
     }
@@ -126,13 +123,14 @@ export const updateRepair = async (req, res) => {
       return res.status(400).json({ message: "Cost cannot be negative" });
     }
 
-  if (customerName !== undefined) repair.customerName = customerName.trim();
-  if (deviceName !== undefined) repair.deviceName = deviceName.trim();
-  if (problemDesc !== undefined) repair.problemDesc = problemDesc?.trim() || null;
-  if (cost !== undefined) repair.cost = cost;
+    const updateData = {};
+    if (customerName !== undefined) updateData.customerName = customerName.trim();
+    if (deviceName !== undefined) updateData.deviceName = deviceName.trim();
+    if (problemDesc !== undefined) updateData.problemDesc = problemDesc?.trim() || null;
+    if (cost !== undefined) updateData.cost = cost;
 
-    await repair.save();
-    res.json(repair);
+    const updatedRepair = await Repair.findByIdAndUpdate(id, updateData, { new: true });
+    res.json(updatedRepair);
   } catch (error) {
     console.error("Update repair error:", error);
     res.status(500).json({ 
@@ -146,20 +144,24 @@ export const markFixed = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || isNaN(id)) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid repair ID is required" });
     }
 
-    const repair = await Repair.findByPk(id);
+    const repair = await Repair.findById(id);
     if (!repair) {
       return res.status(404).json({ message: "Repair not found" });
     }
 
-    repair.status = "fixed";
-    repair.fixed_at = new Date();
-    repair.isDelivered = false;
-    await repair.save();
-    res.json(repair);
+    const updatedRepair = await Repair.findByIdAndUpdate(
+      id,
+      { 
+        status: "fixed",
+        isDelivered: false
+      },
+      { new: true }
+    );
+    res.json(updatedRepair);
   } catch (error) {
     console.error("Mark fixed error:", error);
     res.status(500).json({ 
@@ -173,20 +175,24 @@ export const markNotFixed = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || isNaN(id)) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid repair ID is required" });
     }
 
-    const repair = await Repair.findByPk(id);
+    const repair = await Repair.findById(id);
     if (!repair) {
       return res.status(404).json({ message: "Repair not found" });
     }
 
-    repair.status = "notFixed";
-    repair.fixed_at = null;
-    repair.isDelivered = false;
-    await repair.save();
-    res.json(repair);
+    const updatedRepair = await Repair.findByIdAndUpdate(
+      id,
+      { 
+        status: "notFixed",
+        isDelivered: false
+      },
+      { new: true }
+    );
+    res.json(updatedRepair);
   } catch (error) {
     console.error("Mark not fixed error:", error);
     res.status(500).json({ 
@@ -200,11 +206,11 @@ export const markDelivered = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || isNaN(id)) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid repair ID is required" });
     }
 
-    const repair = await Repair.findByPk(id);
+    const repair = await Repair.findById(id);
     if (!repair) {
       return res.status(404).json({ message: "Repair not found" });
     }
@@ -215,11 +221,15 @@ export const markDelivered = async (req, res) => {
       });
     }
 
-    repair.isDelivered = true;
-    repair.deliveredAt = new Date();
-
-    await repair.save();
-    res.json(repair);
+    const updatedRepair = await Repair.findByIdAndUpdate(
+      id,
+      { 
+        isDelivered: true,
+        deliveredAt: new Date()
+      },
+      { new: true }
+    );
+    res.json(updatedRepair);
   } catch (error) {
     console.error("Mark delivered error:", error);
     res.status(500).json({ 
@@ -255,12 +265,9 @@ export const getMonthlyStats = async (req, res) => {
     const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
 
     // هات كل الريبييرز في الشهر
-    const repairs = await Repair.findAll({
-      where: {
-        createdAt: { [Op.between]: [startDate, endDate] },
-      },
-      order: [["createdAt", "DESC"]],
-    });
+    const repairs = await Repair.find({
+      createdAt: { $gte: startDate, $lte: endDate }
+    }).sort({ createdAt: -1 });
 
     const totalCount = repairs.length;
 
@@ -285,21 +292,20 @@ export const getMonthlyStats = async (req, res) => {
   }
 };
 
-
 export const deleteRepair = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || isNaN(id)) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid repair ID is required" });
     }
 
-    const repair = await Repair.findByPk(id);
+    const repair = await Repair.findById(id);
     if (!repair) {
       return res.status(404).json({ message: "Repair not found" });
     }
 
-    await repair.destroy();
+    await Repair.findByIdAndDelete(id);
     res.json({ message: "Repair deleted successfully" });
   } catch (error) {
     console.error("Delete repair error:", error);

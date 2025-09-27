@@ -6,16 +6,8 @@ import Repair from "./repair/repair.model.js";
 import Sale from "./sale/sale.model.js";
 import SaleItem from "./saleItem/saleItem.model.js";
 
-Category.hasMany(Product, { foreignKey: "categoryId", onDelete: "CASCADE" });
-Product.belongsTo(Category, { foreignKey: "categoryId" });
-
-
-Sale.hasMany(SaleItem, { foreignKey: "saleId", onDelete: "CASCADE" });
-SaleItem.belongsTo(Sale, { foreignKey: "saleId" });
-
-Product.hasMany(SaleItem, { foreignKey: "productId" });
-SaleItem.belongsTo(Product, { foreignKey: "productId" });
-
+// MongoDB doesn't need explicit associations like Sequelize
+// Relationships are handled through ObjectId references in the schemas
 
 export {
   Admin,

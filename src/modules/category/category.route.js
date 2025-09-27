@@ -8,9 +8,9 @@ import {
 import protect from "../../middlewares/auth.middleware.js";
 const router = express.Router();
 
-router.post("/", protect(), createCategory);
-router.get("/", protect(), getCategories);
-router.patch("/:id", protect(), updateCategory);
-router.delete("/:id", protect(), deleteCategory);
+router.post("/", protect, createCategory);
+router.get("/", protect, getCategories);
+router.patch("/:id", protect, updateCategory);
+router.delete("/:id", protect, deleteCategory);
 
 export default router;

@@ -1,33 +1,36 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../lib/database.js";
+import mongoose from "mongoose";
 
-const Otp = sequelize.define("Otp", {
-  id: {
-    type: DataTypes.INTEGER,
-    autoIncrement: true,
-    allowNull: false,
-    primaryKey: true,
-  },
+const otpSchema = new mongoose.Schema({
   email: {
-    type: DataTypes.STRING,
-    allowNull: false,
+    type: String,
+    required: true,
+    lowercase: true,
+    trim: true
   },
   otp: {
-    type: DataTypes.STRING,
-    allowNull: false,
+    type: String,
+    required: true
   },
   type: {
-    type: DataTypes.ENUM("login", "register"),
-    allowNull: false,
+    type: String,
+    enum: ["login", "register"],
+    required: true
   },
   expiresAt: {
-    type: DataTypes.DATE,
-    allowNull: false,
+    type: Date,
+    required: true
   },
   isUsed: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false,
-  },
+    type: Boolean,
+    default: false
+  }
+}, {
+  timestamps: true
 });
+
+// Add TTL index to automatically delete expired OTPs
+otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+const Otp = mongoose.model("Otp", otpSchema);
 
 export default Otp;

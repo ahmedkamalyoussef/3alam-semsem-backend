@@ -1,5 +1,5 @@
 import Expense from "./expense.model.js";
-import { Op } from "sequelize";
+import mongoose from "mongoose";
 
 const validateExpenseData = (data) => {
   const errors = [];
@@ -49,9 +49,7 @@ export const createExpense = async (req, res) => {
 
 export const getExpenses = async (req, res) => {
   try {
-    const expenses = await Expense.findAll({
-      order: [["createdAt", "DESC"]],
-    });
+    const expenses = await Expense.find().sort({ createdAt: -1 });
     res.json(expenses);
   } catch (error) {
     console.error("Get expenses error:", error);
@@ -66,11 +64,11 @@ export const getExpenseById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || isNaN(id)) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid expense ID is required" });
     }
 
-    const expense = await Expense.findByPk(id);
+    const expense = await Expense.findById(id);
     if (!expense) {
       return res.status(404).json({ message: "Expense not found" });
     }
@@ -90,11 +88,11 @@ export const updateExpense = async (req, res) => {
     const { id } = req.params;
     const { description, amount, expenseDate } = req.body;
 
-    if (!id || isNaN(id)) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid expense ID is required" });
     }
 
-    const expense = await Expense.findByPk(id);
+    const expense = await Expense.findById(id);
     if (!expense) {
       return res.status(404).json({ message: "Expense not found" });
     }
@@ -113,12 +111,13 @@ export const updateExpense = async (req, res) => {
       return res.status(400).json({ message: "Invalid expense date format" });
     }
 
-    if (description !== undefined) expense.description = description.trim();
-    if (amount !== undefined) expense.amount = amount;
-    if (expenseDate !== undefined) expense.expenseDate = expenseDate;
+    const updateData = {};
+    if (description !== undefined) updateData.description = description.trim();
+    if (amount !== undefined) updateData.amount = amount;
+    if (expenseDate !== undefined) updateData.expenseDate = expenseDate;
 
-    await expense.save();
-    res.json(expense);
+    const updatedExpense = await Expense.findByIdAndUpdate(id, updateData, { new: true });
+    res.json(updatedExpense);
   } catch (error) {
     console.error("Update expense error:", error);
     res.status(500).json({ 
@@ -132,16 +131,16 @@ export const deleteExpense = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || isNaN(id)) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Valid expense ID is required" });
     }
 
-    const expense = await Expense.findByPk(id);
+    const expense = await Expense.findById(id);
     if (!expense) {
       return res.status(404).json({ message: "Expense not found" });
     }
 
-    await expense.destroy();
+    await Expense.findByIdAndDelete(id);
     res.json({ message: "Expense deleted successfully" });
   } catch (error) {
     console.error("Delete expense error:", error);
@@ -177,12 +176,9 @@ export const getMonthlyStats = async (req, res) => {
     const startDate = new Date(yearNum, monthNum - 1, 1);
     const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
 
-    const expenses = await Expense.findAll({
-      where: {
-        expenseDate: { [Op.between]: [startDate, endDate] },
-      },
-      order: [["createdAt", "DESC"]],
-    });
+    const expenses = await Expense.find({
+      expenseDate: { $gte: startDate, $lte: endDate }
+    }).sort({ createdAt: -1 });
 
     const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
 

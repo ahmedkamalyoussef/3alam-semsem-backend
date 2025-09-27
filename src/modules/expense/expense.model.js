@@ -1,10 +1,24 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../../lib/database.js";
+import mongoose from "mongoose";
 
-const Expense = sequelize.define("Expense", {
-  description: { type: DataTypes.STRING, allowNull: false },
-  amount: { type: DataTypes.FLOAT, allowNull: false },
-  expenseDate: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-}, { timestamps: true });
+const expenseSchema = new mongoose.Schema({
+  description: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  amount: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  expenseDate: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
+});
+
+const Expense = mongoose.model("Expense", expenseSchema);
 
 export default Expense;

@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import Admin from "./admin.model.js";
 import { generateOTP, storeOTP, verifyOTP } from "../../utils/otpService.js";
-import sendOTPEmail  from "../../utils/emailService.js";
+import sendOTPEmail from "../../utils/emailService.js";
 
 // Registration: step 1 (create admin and send OTP)
 export const createAdmin = async (req, res) => { 
@@ -13,7 +13,7 @@ export const createAdmin = async (req, res) => {
       return res.status(400).json({ message: "Password and confirm password do not match" });
     }
 
-    const existingAdmin = await Admin.findOne({ where: { email } });
+    const existingAdmin = await Admin.findOne({ email });
     if (existingAdmin) {
       if (!existingAdmin.isVerified) {
         const otp = generateOTP();
@@ -21,7 +21,7 @@ export const createAdmin = async (req, res) => {
         await sendOTPEmail(email, otp, "register");
         return res.status(200).json({
           message: "Account already exists but not verified. OTP resent to your email.",
-          adminId: existingAdmin.id,
+          adminId: existingAdmin._id,
         });
       }
       return res.status(400).json({ message: "Email already registered" });
@@ -41,7 +41,7 @@ export const createAdmin = async (req, res) => {
 
     res.status(201).json({
       message: "Registration successful. Please verify your email.",
-      adminId: admin.id,
+      adminId: admin._id,
     });
   } catch (error) {
     console.error("Registration error:", error);
@@ -53,7 +53,7 @@ export const createAdmin = async (req, res) => {
 export const verifyAdminRegistration = async (req, res) => {
   try {
     const { email, otp } = req.body;
-    const admin = await Admin.findOne({ where: { email } });
+    const admin = await Admin.findOne({ email });
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
     }
@@ -77,7 +77,7 @@ export const verifyAdminRegistration = async (req, res) => {
 export const loginAdmin = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const admin = await Admin.findOne({ where: { email } });
+    const admin = await Admin.findOne({ email });
     if (!admin) {
       return res.status(404).json({ status: false, message: "Admin not found" });
     }
@@ -102,7 +102,7 @@ export const loginAdmin = async (req, res) => {
 export const verifyAdminLogin = async (req, res) => {
   try {
     const { email, otp } = req.body;
-    const admin = await Admin.findOne({ where: { email } });
+    const admin = await Admin.findOne({ email });
     if (!admin) {
       return res.status(404).json({ status: false, message: "Admin not found" });
     }
@@ -111,7 +111,7 @@ export const verifyAdminLogin = async (req, res) => {
       return res.status(400).json({ status: false, message: "Invalid or expired OTP" });
     }
     const token = jwt.sign(
-      { id: admin.id, email: admin.email },
+      { id: admin._id, email: admin.email },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRATION_TIME || "1d" }
     );
@@ -120,7 +120,7 @@ export const verifyAdminLogin = async (req, res) => {
       token,
       status: true,
       admin: {
-        id: admin.id,
+        id: admin._id,
         email: admin.email
       },
     });
@@ -133,7 +133,7 @@ export const verifyAdminLogin = async (req, res) => {
 export const resendOTP = async (req, res) => {
   try {
     const { email, type } = req.body;
-    const admin = await Admin.findOne({ where: { email } });
+    const admin = await Admin.findOne({ email });
     if (!admin) {
       return res.status(404).json({ status: false, message: "Admin not found" });
     }

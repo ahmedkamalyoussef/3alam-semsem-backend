@@ -1,9 +1,19 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../../lib/database.js";
+import mongoose from "mongoose";
 
-const Sale = sequelize.define("Sale", {
-  totalPrice: { type: DataTypes.FLOAT, allowNull: false },
-  saleDate: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-}, { timestamps: true });
+const saleSchema = new mongoose.Schema({
+  totalPrice: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  saleDate: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
+});
+
+const Sale = mongoose.model("Sale", saleSchema);
 
 export default Sale;
